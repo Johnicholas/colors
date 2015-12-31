@@ -1,0 +1,170 @@
+input (int) UPDATE;
+input (int, int) MOUSE_DOWN;
+input (int, int) MOUSE_UP;
+input (int, int) MOUSE_MOVE;
+
+output (int, int, int, int, int, int) NEW_SPRITE;
+output (int) FREE_SPRITE;
+output (int, int, int) SET_SPRITE_POSITION;
+output (int, int) SET_SPRITE_COLOR;
+
+var int gensym = 1;
+
+class Clock with
+  var int period_in_ms;
+  event void tick;
+do
+  var int past = 0;
+  par do
+    loop do
+      var int ticks = await UPDATE;
+      if ticks > past + period_in_ms then
+        past = ticks;
+        emit tick;
+      end
+    end
+  with
+    var int prev_x, prev_y;
+    (prev_x, prev_y) = await MOUSE_MOVE;
+    loop do
+      var int x, y;
+      (x, y) = await MOUSE_MOVE;
+      emit tick;
+      prev_x = x;
+      prev_y = y;
+    end
+  end
+end
+
+class TweenColor with
+  var int id;
+  var int initial;
+  var int goal;
+  var int delta;
+  var Clock& clock;
+  event void ok;
+do
+  var int color = initial;
+  loop do
+    await clock.tick;
+    if color == goal then
+      break;
+    else
+      color = color + delta;
+      emit SET_SPRITE_COLOR => (id, color);
+    end
+  end
+  emit ok;
+end
+
+class Hexagon with
+  var int id, x, y, w, h;
+  var Clock& clock;
+  event void ok;
+do
+  par/or do
+    loop do
+      var int mx, my;
+      (mx, my) = await MOUSE_DOWN;
+      if mx > x and mx < x + w and my > y and my < y + h then
+        break;
+      end
+    end
+  with
+    emit NEW_SPRITE => (id, x, y, w, h, 0xff0000);
+    finalize with
+      emit FREE_SPRITE => id;
+    end
+    loop do
+      var TweenColor red_to_green with
+        this.id = id;
+        this.initial = 0xff0000;
+        this.goal = 0x00ff00;
+        this.delta = 0x000100 - 0x010000;
+        this.clock = &clock;
+      end;
+      await red_to_green.ok;
+      var TweenColor green_to_blue with
+        this.id = id;
+        this.initial = 0x00ff00;
+        this.goal = 0x0000ff;
+        this.delta = 0x000001 - 0x000100;
+        this.clock = &clock;
+      end;
+      await green_to_blue.ok;
+      var TweenColor blue_to_red with
+        this.id = id;
+        this.initial = 0x0000ff;
+        this.goal = 0xff0000;
+        this.delta = 0x010000 - 0x000001;
+        this.clock = &clock;
+      end;
+      await blue_to_red.ok;
+    end
+  end
+end
+
+
+var Clock sixteenths with
+  this.period_in_ms = 62;
+end;
+
+pool Hexagon[255] hexagons;
+
+par do
+  var int bg_color = 0x999999;
+  var int bg_id = gensym;
+  gensym = gensym + 1;
+  emit NEW_SPRITE => (bg_id, 0, 0, _SCREEN_WIDTH, _SCREEN_HEIGHT, bg_color);
+  loop do
+    var TweenColor black_to_white with
+      this.id = bg_id;
+      this.initial = 0x000000;
+      this.goal = 0xffffff;
+      this.delta = 0x010101;
+      this.clock = &sixteenths;
+    end;
+    await black_to_white.ok;
+    var TweenColor white_to_black with
+      this.id = bg_id;
+      this.initial = 0xffffff;
+      this.goal = 0x000000;
+      this.delta = -1 * 0x010101;
+      this.clock = &sixteenths;
+    end;
+    await white_to_black.ok;
+  end
+with
+  loop do
+    var int x1, y1;
+    (x1, y1) = await MOUSE_DOWN;
+    var int x2, y2;
+    (x2, y2) = await MOUSE_UP;
+    var int x, y, w, h;
+    if x1 < x2 then
+      x = x1;
+      w = x2 - x1;
+    else
+      x = x2;
+      w = x1 - x2;
+    end
+    if y1 < y2 then
+      y = y1;
+      h = y2 - y1;
+    else
+      y = y2;
+      h = y1 - y2;
+    end
+    
+    spawn Hexagon in hexagons with
+      this.id = gensym;
+      this.x = x;
+      this.y = y;
+      this.w = w;
+      this.h = h;
+      this.clock = &sixteenths;
+    end;
+    gensym = gensym + 1;
+  end
+end
+

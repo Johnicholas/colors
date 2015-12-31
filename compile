@@ -1,0 +1,5 @@
+#!/bin/bash
+#
+# A command line for compiling
+#
+gcc -o $1 $2 -lm -Werror -lSDL

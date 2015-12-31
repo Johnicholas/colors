@@ -1,0 +1,1 @@
+emcc -s EXPORTED_FUNCTIONS="['_begin', '_update', '_mouse_down', '_mouse_up', '_mouse_move']" --shell-file shell.html --js-library mylib.js -Wno-parentheses-equality -o $1 $2

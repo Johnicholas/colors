@@ -1,0 +1,15 @@
+default: colors.html
+
+all: colors.html colors_sdl
+
+colors.html: compile_emscripten colors.c _ceu_app.c shell.html myscript.js mylib.js ceu_types.h
+	bash compile_emscripten colors.html colors.c
+
+colors_sdl: colors_sdl.c compile _ceu_app.c
+	bash compile colors_sdl colors_sdl.c
+
+_ceu_app.c: colors.ceu
+	ceu colors.ceu
+
+clean:
+	rm -f colors.html colors_sdl _ceu_app.*
